@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bar League</title>
+<meta name="apple-itunes-app" content="app-id=6759468848" />
+<script>
+  // Phones with Bar League installed never load this page: iOS opens the app via universal link.
+  // So anyone who sees it needs the app. Send them to the store right away.
+  (function () {
+    var ua = navigator.userAgent || '';
+    var store = /Android/i.test(ua)
+      ? 'https://play.google.com/store/apps/details?id=com.flightclub.app'
+      : /iPhone|iPad|iPod/i.test(ua)
+        ? 'itms-apps://itunes.apple.com/app/id6759468848'
+        : 'https://apps.apple.com/app/id6759468848';
+    window.location.replace(store);
+  })();
+</script>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: #020B29; color: #fff; font-family: -apple-system, BlinkMacSystemFont, sans-serif; text-align: center; }
+  a { color: #F5C64B; }
+</style>
+</head>
+<body>
+<p>Opening the App Store… <a href="https://apps.apple.com/app/id6759468848">Get Bar League</a></p>
+</body>
+</html>

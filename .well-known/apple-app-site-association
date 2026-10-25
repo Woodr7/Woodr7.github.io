@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "JW7RZBLJ8N.com.flightclub.app",
+        "appIDs": ["JW7RZBLJ8N.com.flightclub.app"],
+        "paths": ["/gaming/*"],
+        "components": [{ "/": "/gaming/*" }]
+      }
+    ]
+  }
+}
