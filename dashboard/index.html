@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Bar League · Stats</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0b1016; --panel: #121a24; --line: #1f2a38;
+    --text: #eef2f6; --muted: #8b98a8;
+    --navy: #2a5ea8; --red: #c33a3a; --gold: #e8b84a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 20px 28px; border-bottom: 1px solid var(--line);
+           background: linear-gradient(90deg, rgba(42,94,168,.18), rgba(195,58,58,.18)); }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .3px; }
+  header h1 span { color: var(--gold); }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; cursor: pointer; margin-left: 12px; }
+  main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; padding: 22px 28px 40px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-height: 360px; display: flex; flex-direction: column; }
+  .panel h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+  .big { font-size: 34px; font-weight: 700; margin: 2px 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+  .sub b { color: var(--text); font-weight: 600; }
+  .chart { position: relative; flex: 1; min-height: 220px; }
+  #map { flex: 1; min-height: 260px; border-radius: 10px; }
+  .leaflet-container { background: #0b1016; }
+  .leaflet-tile-pane { filter: invert(1) hue-rotate(200deg) brightness(.85) contrast(.9) saturate(.6); }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #18222f; color: var(--text); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  #gate { position: fixed; inset: 0; background: var(--bg); display: none; align-items: center; justify-content: center; z-index: 2000; }
+  #gate form { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; width: min(360px, 90vw); }
+  #gate h2 { margin: 0 0 6px; font-size: 18px; }
+  #gate p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  #gate input { width: 100%; padding: 11px 12px; border-radius: 9px; border: 1px solid var(--line); background: #0b1016; color: var(--text); font-size: 15px; }
+  #gate button { margin-top: 12px; width: 100%; padding: 11px; border: 0; border-radius: 9px; background: var(--red); color: white; font-weight: 600; font-size: 15px; cursor: pointer; }
+  #gate .err { color: #ff8a8a; font-size: 13px; margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div id="gate">
+  <form id="gateForm">
+    <h2>Bar League stats</h2>
+    <p>Enter your dashboard key.</p>
+    <input id="keyInput" type="password" autocomplete="current-password" placeholder="bl-…" required>
+    <button type="submit">Open dashboard</button>
+    <div class="err" id="gateErr"></div>
+  </form>
+</div>
+
+<header>
+  <h1>Bar League <span>Stats</span></h1>
+  <div class="meta"><span id="updated">Loading…</span><button id="refresh">Refresh</button><button id="lock">Lock</button></div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Signups over time</h2>
+    <div class="big" id="signupTotal">–</div>
+    <div class="sub" id="signupSub"></div>
+    <div class="chart"><canvas id="signupChart"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <h2>Games played per week</h2>
+    <div class="big" id="gamesTotal">–</div>
+    <div class="sub" id="gamesSub"></div>
+    <div class="chart"><canvas id="gamesChart"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <h2>Verified venues</h2>
+    <div class="big" id="venueTotal">–</div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--gold)"></span>Verified</span>
+      <span><span class="dot" style="background:var(--navy)"></span>Played at, not verified yet</span>
+    </div>
+    <div id="map"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Active players this month</h2>
+    <div class="big" id="activeTotal">–</div>
+    <div class="sub" id="activeSub"></div>
+    <div class="chart"><canvas id="activeChart"></canvas></div>
+  </section>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://edpjtnpfuvvjfrcqfwbb.supabase.co';
+// Public anon key (same one shipped in the app). The stats function itself requires the dashboard key.
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcGp0bnBmdXZ2amZyY3Fmd2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3MjM1NjcsImV4cCI6MjA3ODI5OTU2N30.xeed-1GhevV3E422Fyo7YFxe0uyfkQToNPIRoGaOwoA';
+const KEY_STORAGE = 'barleague.dashboardKey';
+
+Chart.defaults.color = '#8b98a8';
+Chart.defaults.borderColor = '#1f2a38';
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+const charts = {};
+let map, markerLayer;
+
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fmtWeek = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const fmtDay = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function fillWeeks(rows, firstWeek) {
+  const byWeek = new Map(rows.map((r) => [r.week, r]));
+  const out = [];
+  const start = new Date((firstWeek || rows[0]?.week) + 'T00:00:00');
+  const now = new Date();
+  for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 7)) {
+    const key = ymd(d);
+    out.push(byWeek.get(key) || { week: key, count: 0, darts: 0, pool: 0 });
+  }
+  return out;
+}
+
+function drawChart(id, config) {
+  charts[id]?.destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    ...config,
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: config.legend ?? false, labels: { boxWidth: 10 } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+      ...config.options,
+    },
+  });
+}
+
+function render(d) {
+  document.getElementById('updated').textContent =
+    'Updated ' + new Date(d.generated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+  // Signups: weekly bars + running total line
+  const s = d.signups;
+  const sw = fillWeeks(s.weekly);
+  let run = 0;
+  const cumulative = sw.map((r) => (run += r.count));
+  document.getElementById('signupTotal').textContent = s.total;
+  document.getElementById('signupSub').innerHTML =
+    `<b>${s.onboarded}</b> finished their player card · since ${fmtWeek(sw[0]?.week)}`;
+  drawChart('signupChart', {
+    data: {
+      labels: sw.map((r) => fmtWeek(r.week)),
+      datasets: [
+        { type: 'line', label: 'Total accounts', data: cumulative, borderColor: '#e8b84a', backgroundColor: 'rgba(232,184,74,.12)', fill: true, tension: .3, pointRadius: 0 },
+        { type: 'bar', label: 'New that week', data: sw.map((r) => r.count), backgroundColor: '#2a5ea8', borderRadius: 3 },
+      ],
+    },
+    legend: true,
+  });
+
+  // Games per week, stacked by sport
+  const g = d.games;
+  const gw = fillWeeks(g.weekly);
+  document.getElementById('gamesTotal').textContent = g.total;
+  document.getElementById('gamesSub').innerHTML =
+    `<b>${g.vouched}</b> vouched · <b>${g.lobbies}</b> lobbies opened`;
+  drawChart('gamesChart', {
+    type: 'bar',
+    data: {
+      labels: gw.map((r) => fmtWeek(r.week)),
+      datasets: [
+        { label: 'Darts', data: gw.map((r) => r.darts), backgroundColor: '#c33a3a', borderRadius: 3 },
+        { label: 'Pool', data: gw.map((r) => r.pool), backgroundColor: '#2a5ea8', borderRadius: 3 },
+      ],
+    },
+    legend: true,
+    options: { scales: {
+      x: { stacked: true, grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+      y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+    } },
+  });
+
+  // Venues map
+  const venues = d.venues.filter((v) => v.lat != null && v.lng != null);
+  const verified = d.venues.filter((v) => v.verified_at).length;
+  document.getElementById('venueTotal').innerHTML =
+    `${verified} <span style="font-size:15px;color:var(--muted);font-weight:500">verified of ${d.venues.length} bars</span>`;
+  if (!map) {
+    map = L.map('map', { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+    }).addTo(map);
+  }
+  markerLayer?.remove();
+  markerLayer = L.featureGroup(venues.map((v) => {
+    const ok = Boolean(v.verified_at);
+    return L.circleMarker([v.lat, v.lng], {
+      radius: ok ? 7 : 5, weight: 1.5,
+      color: ok ? '#e8b84a' : '#2a5ea8', fillColor: ok ? '#e8b84a' : '#2a5ea8', fillOpacity: ok ? .85 : .55,
+    }).bindPopup(
+      `<b>${v.name}</b><br>${v.address || v.city || ''}<br>` +
+      (ok ? `Verified ${new Date(v.verified_at).toLocaleDateString()}` : 'Not verified yet') +
+      ` · ${v.games} game${v.games === 1 ? '' : 's'}`
+    );
+  })).addTo(map);
+  // Most bars are in NYC; open there, with the rest one zoom-out away.
+  const nyc = venues.filter((v) => v.lat > 40.4 && v.lat < 41 && v.lng > -74.3 && v.lng < -73.6);
+  map.fitBounds(L.latLngBounds((nyc.length ? nyc : venues).map((v) => [v.lat, v.lng])).pad(0.15));
+  setTimeout(() => map.invalidateSize(), 50);
+
+  // Active players this month
+  const a = d.active;
+  const monthName = new Date().toLocaleDateString(undefined, { month: 'long' });
+  document.getElementById('activeTotal').textContent = a.this_month;
+  const delta = a.this_month - a.last_month;
+  document.getElementById('activeSub').innerHTML =
+    `${monthName} · <b>${a.last_month}</b> last month (${delta >= 0 ? '+' : ''}${delta}) · <b>${a.xp_this_month.toLocaleString()}</b> XP earned`;
+  const start = new Date(); start.setDate(1);
+  const days = [];
+  for (let dt = new Date(start); dt <= new Date(); dt.setDate(dt.getDate() + 1)) days.push(ymd(dt));
+  const byDay = new Map(a.daily.map((r) => [r.day, r.players]));
+  drawChart('activeChart', {
+    type: 'bar',
+    data: {
+      labels: days.map(fmtDay),
+      datasets: [{ label: 'Players active', data: days.map((k) => byDay.get(k) || 0), backgroundColor: '#e8b84a', borderRadius: 3 }],
+    },
+  });
+}
+
+async function load(key) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/dashboard_stats`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_key: key }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || `HTTP ${res.status}`);
+  return body;
+}
+
+const gate = document.getElementById('gate');
+async function start(key) {
+  try {
+    const data = await load(key);
+    localStorage.setItem(KEY_STORAGE, key);
+    gate.style.display = 'none';
+    render(data);
+  } catch (e) {
+    localStorage.removeItem(KEY_STORAGE);
+    gate.style.display = 'flex';
+    document.getElementById('gateErr').textContent =
+      /invalid dashboard key/i.test(e.message) ? 'That key didn’t work.' : `Couldn’t load stats: ${e.message}`;
+  }
+}
+
+document.getElementById('gateForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  start(document.getElementById('keyInput').value.trim());
+});
+document.getElementById('refresh').addEventListener('click', () => {
+  const k = localStorage.getItem(KEY_STORAGE);
+  if (k) start(k);
+});
+document.getElementById('lock').addEventListener('click', () => {
+  localStorage.removeItem(KEY_STORAGE);
+  location.reload();
+});
+
+const fromHash = new URLSearchParams(location.hash.slice(1)).get('key');
+if (fromHash) history.replaceState(null, '', location.pathname);
+const saved = fromHash || localStorage.getItem(KEY_STORAGE);
+if (saved) start(saved); else gate.style.display = 'flex';
+</script>
+</body>
+</html>
